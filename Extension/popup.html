@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>JCrypto</title>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-1BmE4kWBq78iYhFldvKuhfTAU6auU8tT94WrHftjDbrCEXSU1oBoqyl2QvZ6jIW3" crossorigin="anonymous">
+        <link rel="stylesheet" href="/css/background.css">
+        <link rel="stylesheet" href="/css/main.css">
+        <link rel="preconnect" href="https://fonts.googleapis.com">
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link href="https://fonts.googleapis.com/css2?family=Ubuntu:wght@300;400;500;700&display=swap" rel="stylesheet">
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta2/css/all.min.css" integrity="sha512-YWzhKL2whUzgiheMoBFwW8CKV4qpHQAEuvilg9FAn5VJUDwKZZxkJNuGM4XkWuk94WCrrwslk8yWNGmY1EduTA==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+  <style>
+    html {
+      height: 37.5em;
+      width: 25em;
+    }
+    p {
+      margin:0;
+    }
+  </style>
+</head>
+<body class="m-0">
+  <canvas id="gradient-canvas" data-js-darken-top data-transition-in></canvas>
+  <div class="d-flex align-items-stretch flex-column vh-100">
+    <nav class="navbar navbar-light ps-3 d-inline">
+      <button class="navbar-toggler border-0" type="button" data-bs-toggle="offcanvas" data-bs-target="#offcanvasNavbar" aria-controls="offcanvasNavbar">
+          <span class="text-light"><i class="fas fa-bars"></i></span>
+      </button>
+      <select id="walletSelection" class="text-center navbar-brand bg-transparent rounded border-white mb-0 h1 text-light position-absolute top-50 start-50 translate-middle" aria-label="Default select example">
+      </select>
+      <div class="offcanvas offcanvas-start" tabindex="-1" id="offcanvasNavbar" aria-labelledby="offcanvasNavbarLabel">
+          <div class="offcanvas-header">
+            <h5 class="offcanvas-title" id="offcanvasNavbarLabel">JCrypto</h5>
+            <button type="button" class="btn-close text-reset" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+          </div>
+          <div class="offcanvas-body">
+            <ul class="navbar-nav justify-content-end flex-grow-1 pe-3">
+              <!--
+              <li class="nav-item">
+                <a class="nav-link active text-secondary text-center" aria-current="page" href="/main">Main</a>
+              </li>
+              <li class="nav-item">
+                <a class="nav-link text-secondary text-center" href="/nft">NFTs</a>
+              </li>
+              <li class="nav-item">
+                <a class="nav-link text-secondary text-center" href="/peer">Peer</a>
+              </li>
+              <hr>
+              -->
+              <li class="nav-item">
+                <a class="nav-link text-secondary text-center" data-bs-toggle="modal" data-bs-target="#createWalletModal">Create Wallet</a>
+              </li>
+              <li class="nav-item">
+                <a class="nav-link text-secondary text-center" data-bs-toggle="modal" data-bs-target="#importWalletModal">Import Wallet</a>
+              </li>
+            </ul>
+          </div>
+        </div>
+    </nav>
+    <div class="container-fluid flex-grow-1 text-center text-dark overflow-scroll bg-light ps-1 pe-1 pt-3 pb-3">
+
+
+
+      <div id="startup-window" class="visually-hidden position-absolute top-50 start-50 translate-middle">
+        <button id="createWalletButton" type="button" class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#createWalletModal">Create Wallet</button>
+        <br>
+        <br>
+        <button type="button" class="btn btn-outline-secondary"  data-bs-toggle="modal" data-bs-target="#importWalletModal">Import Wallet</button>
+      </div>
+
+
+      <div id="main-window" class="container d-flex flex-column h-100">
+        <div class="container">
+          <h2><span id="walletBalance"></span> JCR</h2>
+          <p id="walletAddress" class="text-truncate ps-4 pe-4" data-toggle="tooltip" title="Text Copied!"></p>
+        </div>
+        <br>
+        <div class="container" id="showSendTransaction">
+          <div class="m-0 row w-100 text-center">
+            <div class="m-0 col-12">
+              <h3 class="m-0"><i class="fas fa-arrow-right text-white p-2 bg-primary rounded-circle" style="min-width:39px; padding-top: 100%;"></i></h3>
+            </div>
+          </div>
+          <div class="m-0 row w-100 text-center">
+            <div class="m-0 col-12">
+              <p class="text-primary">Send</p>
+            </div>
+          </div>
+        </div>
+        <h5 class="text-start text-secondary">Transactions</h5>
+        <hr class="mt-1 mb-1">
+        <div id="walletTransactions" class="container flex-grow-1 overflow-scroll">
+        </div>
+      </div>
+
+      <div class="modal fade" id="sendTransactionModal" tabindex="-1" aria-labelledby="sendTransactionModal" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h5 class="modal-title" id="staticBackdropLabel">Create Wallet</h5>
+              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+              <div id="sendingTransactionSpinner" class="spinner-border visually-hidden" role="status">
+                <span class="visually-hidden">Loading...</span>
+              </div>
+              <form id="sendTransactionForm">
+                <div class="mb-3 text-start">
+                  <label for="transaction-sendAddress" class="form-label">Address</label>
+                  <input type="text" class="form-control" id="transaction-sendAddress" required>
+                </div>
+                <div class="mb-3 text-start">
+                  <label for="transaction-sendAmount" class="form-label">Amount</label>
+                  <input type="number" class="form-control"  id="transaction-sendAmount" required min="0" value="0" step="0.00001">
+                </div>
+                <div class="mb-3 text-start">
+                  <label for="transaction-feeAmount" class="form-label">Fee</label>
+                  <input type="number" class="form-control"  id="transaction-feeAmount" required min="0" value="0" step="0.00001">
+                </div>
+                <button type="submit" class="btn btn-primary">Send Transaction</button>
+              </form>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal fade" id="createWalletModal" tabindex="-1" aria-labelledby="createWalletModal" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h5 class="modal-title" id="staticBackdropLabel">Create Wallet</h5>
+              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+              <div id="creatingWalletSpinner" class="spinner-border visually-hidden" role="status">
+                <span class="visually-hidden">Loading...</span>
+              </div>
+              <form id="createWalletForm">
+                <div class="mb-3 text-start">
+                  <label for="create-walletName" class="form-label">Wallet Name</label>
+                  <input type="text" class="form-control" id="create-walletName">
+                </div>
+                <div class="mb-3 text-start">
+                  <label for="create-walletPassword" class="form-label">Password</label>
+                  <input type="password" class="form-control" id="create-walletPassword">
+                </div>
+                <button type="submit" class="btn btn-primary">Create Wallet</button>
+              </form>
+
+
+              <div id="displayMnemonic" class="visually-hidden">
+                <p>Your Mnemonic is: </p>
+                <h4 class="text-dark" id="createdMnemonic"></h4>
+                <p>Remember to safely store your mnemonic offline because if lost/stolen you will lose your wallet.</p>
+                <button class="btn btn-primary" id="moveToMatching">Next</button>
+              </div>
+
+
+              <div id="matchMnemonic" class="visually-hidden">
+                <p id="matchLabel">Move the words to the correct order: </p>
+                <div id="dropSection">
+                </div>
+                <div id="draggableWords" class="d-flex justify-content-center flex-wrap" style="margin-top:5px;padding:5px;border:1px solid #aaaaaa;min-height:100px;">
+                </div>
+                <h4 class="text-dark" id="createdMnemonic"></h4>
+                <button class="btn btn-primary" id="confirmMnemonicMatch">Confirm</button>
+                <br>
+                <br>
+                <button class="btn btn-primary" id="backToMnemonic">Previous</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal fade" id="importWalletModal" tabindex="-1" aria-labelledby="importWalletModal" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h5 class="modal-title" id="staticBackdropLabel">Import Wallet</h5>
+              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+              <div id="importWalletSpinner" class="spinner-border visually-hidden" role="status">
+                <span class="visually-hidden">Loading...</span>
+              </div>
+              <form id="importWalletForm">
+                <div class="mb-3 text-start">
+                  <label for="import-walletName" class="form-label">Wallet Name</label>
+                  <input type="text" class="form-control" id="import-walletName">
+                </div>
+                <div class="mb-3 text-start">
+                  <label for="import-walletMnemonic" class="form-label">Wallet Mnemonic (space separated)</label>
+                  <input type="text" class="form-control" id="import-walletMnemonic">
+                </div>
+                <div class="mb-3 text-start">
+                  <label for="import-walletPassword" class="form-label">Password</label>
+                  <input type="password" class="form-control" id="import-walletPassword">
+                </div>
+                <button type="submit" class="btn btn-primary">Import Wallet</button>
+              </form>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal fade" id="enterWalletPasswordModal" tabindex="-1" aria-labelledby="enterWalletPasswordTransactionModal" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h5 class="modal-title" id="staticBackdropLabel1">Enter Password</h5>
+              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+              <div id="sendingTransactionSpinner1" class="spinner-border visually-hidden" role="status">
+                <span class="visually-hidden">Loading...</span>
+              </div>
+              <form id="enterSendPasswordForm">
+                <div class="mb-3 text-start">
+                  <label for="transaction-walletPassword" class="form-label">Enter Wallet Password</label>
+                  <input type="password" class="form-control"  id="transaction-walletPassword" required>
+                </div>
+                <button type="submit" class="btn btn-primary">Submit</button>
+              </form>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+</body>
+<script src="/js/jquery.min.js" integrity="sha256-/xUj+3OJU5yExlq6GSYGSHk7tPXikynS7ogEvDej/m4=" crossorigin="anonymous"></script>
+<script src="/js/bootstrap.bundle.min.js" integrity="sha384-ka7Sk0Gln4gmtz2MlQnikT1wXgYsOg+OMhuP+IlRH9sENBO0LRn5q+8nbTov4+1p" crossorigin="anonymous"></script>
+<script src="/js/jquery-ui.min.js" integrity="sha256-hlKLmzaRlE8SCJC1Kw8zoUbU8BxA+8kR3gseuKfMjxA=" crossorigin="anonymous"></script>
+<script src="/js/crypto-js.js"></script>
+<script src="/js/elliptic.js"></script>
+<script src="/js/eosjs-ecc.min.js"
+    integrity="sha512-dYFDmK/d9r3/NCp6toLtfkwOjSMRBaEzaGAx1tfRItC0nsI0hVLERk05iNBQR7uDNI7ludYhcBI4vUiFHdjsTQ=="
+    crossorigin="anonymous"></script>
+<script src="/js/helper.js"></script>
+<script src="/js/jcryptolib.js"></script>
+<script src="/js/main.js"></script>
+<script src="/js/index.js"></script>
+</html>

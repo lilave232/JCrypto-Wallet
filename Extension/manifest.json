@@ -1,0 +1,24 @@
+{
+  "name": "JCrypto",
+  "description": "JCrypto Currency Wallet!",
+  "version": "1.0",
+  "manifest_version": 3,
+  "web_accessible_resources" : [{"resources": ["/bip-39/english.txt"], "matches":["<all_urls>"]}],
+  "permissions": ["storage", "activeTab", "scripting"],
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "/images/jcrypto16-01.png",
+      "32": "/images/jcrypto32-01.png",
+      "48": "/images/jcrypto48-01.png",
+      "128": "/images/jcrypto128-01.png"
+    }
+  },
+  "icons": {
+    "16": "/images/jcrypto16-01.png",
+    "32": "/images/jcrypto32-01.png",
+    "48": "/images/jcrypto48-01.png",
+    "128": "/images/jcrypto128-01.png"
+  },
+  "options_page": "options.html"
+}
