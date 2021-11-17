@@ -147,7 +147,11 @@ class JCrypto {
     
     decryptSeed(ciphertext, pwd) {
         var _ciphertext = CryptoJS.AES.decrypt(ciphertext,pwd);
-        return hexToBytes(_ciphertext.toString(CryptoJS.enc.Utf8));
+        var return_value = hexToBytes(_ciphertext.toString(CryptoJS.enc.Utf8));
+        if (return_value.length > 64) {
+            return_value = return_value.slice(1,65);
+        }
+        return return_value;
     }
 
     signMsg(msg, keyPair) {
@@ -370,7 +374,6 @@ class Wallet {
                 this.setBalance(Number(data.Usable_Balance).toFixed(2));
                 this.setUTXOS(data.UTXOS);
                 this.setTransactions(data.Transactions);
-                console.log(data);
                 resolve(0);
                 //resolve(Number(data.Usable_Balance).toFixed(2));    
             },"json").fail(function(xhr, status, error) {
@@ -455,8 +458,8 @@ class Wallet {
     }
 }
 
-var session = new Session('http://jcrypto.ddns.net:55555');
-//var session = new Session('http://localhost:8080');
+//var session = new Session('http://jcrypto.ddns.net:55555');
+var session = new Session('http://localhost:8080');
 var jcrypto = new JCrypto(session);
 
 var ec = jcrypto.ec;
@@ -471,8 +474,10 @@ function importWallet(name,mnemonic,password) {
     //console.log(name, mnemonic, password);
     //var mnemonic = "inform provide road inmate pilot stable swamp waste quarter shove bleak arrive";
     var seed = jcrypto.getMaster(mnemonic);
+    console.log(seed);
     var key = jcrypto.getKey(seed);
     var address = CryptoJS.SHA256(CryptoJS.enc.Hex.parse(toHexString(key.getPublic().encode().slice(1,65)))).toString();
+    console.log(address);
     var encryptedSeed = jcrypto.encryptSeed(seed,password);
     return new Promise(async function(resolve, reject) {
         chrome.storage.local.get(['wallets'], async (result) => {
