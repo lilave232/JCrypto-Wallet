@@ -455,8 +455,8 @@ class Wallet {
     }
 }
 
-//var session = new Session('http://jcrypto.ddns.net:55555');
-var session = new Session('http://localhost:8080');
+var session = new Session('http://jcrypto.ddns.net:55555');
+//var session = new Session('http://localhost:8080');
 var jcrypto = new JCrypto(session);
 
 var ec = jcrypto.ec;
