@@ -55,12 +55,25 @@ $(document).ready(async function() {
         }
     });
 
-    $('#enterSendPasswordForm').submit(function( event ) { 
+    $('#showLendTransaction').click(async function() {
+        if (session.activeWallet.key == null){
+            $('#enterWalletPasswordModal').attr('redirect','#lendTransactionModal')
+            $('#enterWalletPasswordModal').modal('show');
+        } else {
+            await showLendTransaction();
+            $('#lendTransactionModal').modal('show');
+        }
+    });
+
+    $('#enterSendPasswordForm').submit(async function( event ) { 
         event.preventDefault();
         try {
             session.activeWallet.getKey($('#transaction-walletPassword').val());
             $('#enterSendPasswordForm').trigger("reset");
             $('#enterWalletPasswordModal').modal('hide');
+            if ($('#enterWalletPasswordModal').attr('redirect') == '#lendTransactionModal') {
+                await showLendTransaction();
+            }
             $($('#enterWalletPasswordModal').attr('redirect')).modal('show');
         } catch (e) {
             showError($('#enterWalletPasswordModal'),"Incorrect Password");
@@ -71,10 +84,34 @@ $(document).ready(async function() {
         event.preventDefault();
         session.activeWallet.sendTxn($('#transaction-sendAddress').val(),$("#transaction-sendAmount").val(),$("#transaction-feeAmount").val());
     });
+
+    $('#lendTransactionForm').submit(async function( event ) {
+        event.preventDefault();
+        session.activeWallet.lendTxn($('#transaction-lendAddress :selected').attr('hash'),$('#transaction-lendAddress :selected').attr('address'),$("#transaction-lendAmount").val(),$("#transaction-lendFeeAmount").val());
+    });
     
     await updateWallets()
     
 });
+
+async function showLendTransaction() {
+    return new Promise(async function(resolve, reject) {
+        $.get( session.webServer + "/getBorrowers").done(( data ) => {
+            if ('borrowers' in data) {
+                for (var i = 0; i < data.borrowers.length; i++) {
+                    $('#transaction-lendAddress').append("<option hash='" + data.borrowers[i].hash + "'" + " address='" + data.borrowers[i].borrowerAddress + "'" + ">" + data.borrowers[i].hash + "</option>")
+                }
+            }
+            resolve();
+        }).fail(function(xhr, status, error) {
+            console.log("Failed");
+            resolve();
+            //showError($('#sendTransactionModal'),"Unable to Send Transaction");
+            //$('#sendTransactionForm').trigger("reset");
+        });
+    })
+    
+}
 
 async function setupMnemonic () {
     var mnemonic = await jcrypto.generateMnemonic();

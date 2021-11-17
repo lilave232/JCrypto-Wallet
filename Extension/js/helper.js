@@ -17,6 +17,14 @@ function byteArrayToWordArray(ba) {
 	return CryptoJS.lib.WordArray.create(wa, ba.length);
 }
 
+function toNumberString(num) { 
+    if (Number.isInteger(num)) { 
+      return num + ".0"
+    } else {
+      return num.toString(); 
+    }
+  }
+
 function hexToDec(s) {
     var i, j, digits = [0], carry;
     for (i = 0; i < s.length; i += 1) {

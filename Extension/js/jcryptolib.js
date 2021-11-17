@@ -24,9 +24,11 @@ class Session {
     async loadWallets () {
         return new Promise(function(resolve, reject) {
             chrome.storage.local.get(['wallets'], function(result) {
-                for (var i = 0; i < result.wallets.length; i++) {
-                    var wallet = new Wallet(this.session, result.wallets[i].walletName, result.wallets[i].walletSeed, result.wallets[i].walletAddress)
-                    session.addWallet(wallet);
+                if ('wallets' in result) {
+                    for (var i = 0; i < result.wallets.length; i++) {
+                        var wallet = new Wallet(this.session, result.wallets[i].walletName, result.wallets[i].walletSeed, result.wallets[i].walletAddress)
+                        session.addWallet(wallet);
+                    }
                 }
                 resolve();
             })
@@ -215,6 +217,85 @@ class JCrypto {
 
 }
 
+class TransactionInput {
+    constructor (previousTxn, index, signature, key) {
+        this.previousTxnHash = previousTxn;
+        this.outputIndex = index;
+        this.outputSignature = signature;
+        this.key = key;
+        this.hash = CryptoJS.SHA256(this.previousTxnHash + this.outputIndex).toString();
+    }
+
+    getHash() {
+        return this.hash;
+    }
+}
+
+class TransactionOutput {
+    constructor (address,value) {
+        this.address = address;
+        this.value = value;
+        this.hash = CryptoJS.SHA256(this.address + toNumberString(this.value)).toString();
+    }
+
+    getHash() {
+        return this.hash;
+    }
+}
+
+class Transaction {
+
+    constructor () {
+        this.timestamp = Date.now();
+        this.inputs = [];
+        this.outputs = [];
+        this.hash = null;
+        this.input_hashes = "";
+        this.output_hashes = "";
+        this.hash = CryptoJS.SHA256(this.input_hashes + this.output_hashes + this.timestamp).toString();
+    }
+
+    setTimestamp(timestamp) {
+        this.timestamp = timestamp;
+        this.hash = CryptoJS.SHA256(this.input_hashes + this.output_hashes + this.timestamp).toString();
+    }
+
+    addInput(input) {
+        this.inputs.push(input);
+        this.input_hashes += input.getHash();
+        this.hash = CryptoJS.SHA256(this.input_hashes + this.output_hashes + this.timestamp).toString();
+    }
+
+    addOutput(output) {
+        this.outputs.push(output);
+        this.output_hashes += output.getHash();
+        this.hash = CryptoJS.SHA256(this.input_hashes + this.output_hashes + this.timestamp).toString();
+    }
+
+    getHash() {
+        return this.hash;
+    }
+
+}
+
+class LendContract {
+    constructor(lenderAddress, borrowContractHash, lendTransaction, key) {
+        this.inceptionDate = Date.now();
+        this.lenderAddress = lenderAddress;
+        this.borrowContractHash = borrowContractHash;
+        this.lendTransaction = lendTransaction;
+        //this.hash = DigestUtils.sha256Hex(this.inceptionDate + this.lenderAddress + this.borrowContractHash + this.lendTransaction.getHash());
+        this.hash = CryptoJS.SHA256(this.inceptionDate + this.lenderAddress + this.borrowContractHash + this.lendTransaction.getHash()).toString();
+        this.key = hexToDec(toHexString(key.getPublic().encode().slice(1,65)));
+        this.signature = jcrypto.signMsg(this.hash,key);
+    }
+
+    getHash() {
+        return this.hash;
+    }
+
+}
+
 class Wallet {
     constructor (session, name, seed, address) {
         this.name = name;
@@ -267,16 +348,17 @@ class Wallet {
                 chrome.storage.local.get(['walletInfo'], async (result) => {
                     try {
                         const data = result.walletInfo[this.address];
-                        this.setBalance(Number(data.Usable_Balance).toFixed(2));
-                        this.setUTXOS(data.UTXOS);
-                        this.setTransactions(data.Transactions);
+                        this.setBalance(Number(data.balance).toFixed(2));
+                        this.setUTXOS(data.utxos);
+                        this.setTransactions(data.transactions);
                         resolve();
                     } catch (e) {
                         resolve();
                     }
                 });
             } else {
-                await this.saveWalletInfo(loadedData);
+                await this.saveWalletInfo();
+                console.log("Saving Data");
                 resolve();
             }
         });
@@ -288,6 +370,7 @@ class Wallet {
                 this.setBalance(Number(data.Usable_Balance).toFixed(2));
                 this.setUTXOS(data.UTXOS);
                 this.setTransactions(data.Transactions);
+                console.log(data);
                 resolve(0);
                 //resolve(Number(data.Usable_Balance).toFixed(2));    
             },"json").fail(function(xhr, status, error) {
@@ -302,26 +385,34 @@ class Wallet {
         return address;
     }
 
-    sendTxn(address, amount, fee) {
+    getTxn(address, amount, fee) {
+        var input_value = 0;
+        var unused = this.session.activeWallet.utxos;
+        var transaction = new Transaction();
+        var key = this.session.activeWallet.key;
+        var signature = jcrypto.signMsg(this.session.activeWallet.address,key);
+        for (var i = 0; i < unused.length; i++) {
+            input_value += unused[i].amount;
+            transaction.addInput(new TransactionInput(unused[i].hash, unused[i].output,signature,signature.public));
+            //inputs.push({'previousTxn':unused[i].hash,'index':unused[i].output,'signature':jcrypto.signMsg(this.session.activeWallet.address,key)});
+            if (input_value >= parseFloat(amount) + parseFloat(fee)) break;
+        }
+        transaction.addOutput(new TransactionOutput(address,parseFloat(amount)));
+        if (input_value > (parseFloat(amount) + parseFloat(fee))) {
+            transaction.addOutput(new TransactionOutput(this.session.activeWallet.address,input_value - (parseFloat(amount) + parseFloat(fee))));
+        } else if (input_value < (parseFloat(amount) + parseFloat(fee))) {
+            return false;
+        }
+        return transaction;
+    }
 
+    sendTxn(address, amount, fee) {
         if (amount > 0) {
-            var input_value = 0;
-            var inputs = [];
-            var unused = this.session.activeWallet.utxos;
-            for (var i = 0; i < unused.length; i++) {
-                input_value += unused[i].amount;
-                var key = this.session.activeWallet.key;
-                inputs.push({'previousTxn':unused[i].hash,'index':unused[i].output,'signature':jcrypto.signMsg(this.session.activeWallet.address,key)});
-                if (input_value >= parseFloat(amount) + parseFloat(fee)) break;
+            var transaction = this.getTxn(address,amount,fee);
+            if (transaction == false) {
+                showError($('#sendTransactionModal'),"Insufficient Funds!");
+                return;
             }
-            var outputs = [];
-            outputs.push({address:address,value:parseFloat(amount)});
-            if (input_value > (parseFloat(amount) + parseFloat(fee))) {
-                outputs.push({address:session.activeWallet.address,value:input_value - (parseFloat(amount) + parseFloat(fee))});
-            } else if (input_value < (parseFloat(amount) + parseFloat(fee))) {
-                showError($('#sendTransactionModal'),"Insufficient Funds to Send Transaction");
-            }
-            var transaction = {inputs:inputs,outputs:outputs};
             $.post( this.session.webServer + "/sendTxn", {transaction:btoa(JSON.stringify(transaction))},"json").done(( data ) => {
                 showSuccess($('#sendTransactionModal'),"Transaction Sent!")
                 $('#sendTransactionForm').trigger("reset");
@@ -329,25 +420,43 @@ class Wallet {
             },"json").fail(function(xhr, status, error) {
                 showError($('#sendTransactionModal'),"Unable to Send Transaction");
                 $('#sendTransactionForm').trigger("reset");
-            });;
+            });
         }
-
     }
 
-    async saveWalletInfo(data) {
-        chrome.storage.local.get(['walletInfo'], function(result) {
+    lendTxn(borrowContract, address, amount, fee) {
+        if (amount > 0) {
+            var transaction = this.getTxn(address,amount,fee);
+            if (transaction == false) {
+                showError($('#lendTransactionModal'),"Insufficient Funds!");
+                return;
+            }
+            var lendContract = new LendContract(this.address,borrowContract,transaction,this.key);
+            $.post( this.session.webServer + "/lendFunds", {lendContract:btoa(JSON.stringify(lendContract))},"json").done(( data ) => {
+                showSuccess($('#lendTransactionModal'),"Transaction Sent!")
+                $('#lendTransactionForm').trigger("reset");
+                //resolve(Number(data.Usable_Balance).toFixed(2));    
+            },"json").fail(function(xhr, status, error) {
+                showError($('#lendTransactionModal'),"Unable to Send Transaction");
+                $('#lendTransactionForm').trigger("reset");
+            });
+        }
+    }
+
+    async saveWalletInfo() {
+        chrome.storage.local.get(['walletInfo'], (result) => {
             var info = {};
             if (result.hasOwnProperty('walletInfo')) {
                 info = result.walletInfo;
             }
-            info[this.address] = data;
+            info[this.address] = this;
             chrome.storage.local.set({walletInfo:info});
         });
     }
 }
 
-var session = new Session('http://jcrypto.ddns.net:55555');
-//var session = new Session('http://localhost:8080');
+//var session = new Session('http://jcrypto.ddns.net:55555');
+var session = new Session('http://localhost:8080');
 var jcrypto = new JCrypto(session);
 
 var ec = jcrypto.ec;
@@ -367,7 +476,12 @@ function importWallet(name,mnemonic,password) {
     var encryptedSeed = jcrypto.encryptSeed(seed,password);
     return new Promise(async function(resolve, reject) {
         chrome.storage.local.get(['wallets'], async (result) => {
-            result.wallets.push({walletName:name,walletSeed:encryptedSeed,walletAddress:address});
+            if ('wallets' in result) {
+                result.wallets.push({walletName:name,walletSeed:encryptedSeed,walletAddress:address});
+            } else {
+                result['wallets'] = [{walletName:name,walletSeed:encryptedSeed,walletAddress:address}];
+            }
+            
             chrome.storage.local.set({wallets:result.wallets});
             if ($('#createWalletModal').hasClass("show")) {
                 $('#creatingWalletSpinner').addClass("visually-hidden");
