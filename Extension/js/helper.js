@@ -85,3 +85,64 @@ async function readTextFile()
 
     return value.split("\n");
 }
+
+var loadFile = function(event) {
+    var output = document.getElementById('mint-output');
+    output.src = URL.createObjectURL(event.target.files[0]);
+    $(output).attr('type',event.target.files[0].type);
+    output.onload = function() {
+        $(output).attr('width',output.naturalWidth);
+        $(output).attr('height',output.naturalHeight);
+        URL.revokeObjectURL(output.src) // free memory
+    }
+};
+
+function getDataUrl(img) {
+    // Create canvas
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    // Set width and height
+    canvas.width = img.naturalWidth;
+    canvas.height = img.naturalHeight;
+    // Draw the image
+    ctx.drawImage(img, 0, 0);
+    return canvas.toDataURL($(img).attr('type'));
+};
+
+function dataURLtoFile(dataurl, filename) {
+ 
+    var arr = dataurl.split(','),
+        mime = arr[0].match(/:(.*?);/)[1],
+        bstr = atob(arr[1]), 
+        n = bstr.length, 
+        u8arr = new Uint8Array(n);
+        
+    while(n--){
+        u8arr[n] = bstr.charCodeAt(n);
+    }
+    
+    return new File([u8arr], filename, {type:mime});
+}
+
+function fileToByteArray(file) {
+    return new Promise((resolve, reject) => {
+        try {
+            let reader = new FileReader();
+            let fileByteArray = [];
+            reader.readAsArrayBuffer(file);
+            reader.onloadend = (evt) => {
+                if (evt.target.readyState == FileReader.DONE) {
+                    let arrayBuffer = evt.target.result,
+                        array = new Uint8Array(arrayBuffer);
+                    for (byte of array) {
+                        fileByteArray.push(byte);
+                    }
+                }
+                resolve(fileByteArray);
+            }
+        }
+        catch (e) {
+            reject(e);
+        } 
+    })
+}

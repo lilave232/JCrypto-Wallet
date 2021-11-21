@@ -1,15 +1,15 @@
 $(document).ready(async function() {
 
-    $('#walletAddress').click(function(){
+    $('.walletAddress').click(function(){
         const elem = document.createElement('textarea');
-        elem.value = $('#walletAddress').text();
+        elem.value = $('.walletAddress').text();
         document.body.appendChild(elem);
         elem.select();
         document.execCommand('copy');
         document.body.removeChild(elem);
-        $('#walletAddress').tooltip({ placement : "top" });
-        $('#walletAddress').tooltip('show');
-        setTimeout(function() {$('#walletAddress').tooltip('dispose')},5000);
+        $('.walletAddress').tooltip({ placement : "top" });
+        $('.walletAddress').tooltip('show');
+        setTimeout(function() {$('.walletAddress').tooltip('dispose')},5000);
     });
     
     $("#createWalletForm").submit(function( event ) {
@@ -18,7 +18,7 @@ $(document).ready(async function() {
     });
 
     $('#walletSelection').on('change', function() {
-        walletChanged(this.value)
+        walletChanged(this.value);
     });
 
     $("#moveToMatching").click(function(){
@@ -65,6 +65,17 @@ $(document).ready(async function() {
         }
     });
 
+    $('#showMintNFT').click(async function() {
+        if (session.activeWallet.key == null){
+            $('#enterWalletPasswordModal').attr('redirect','#mintNFTModal')
+            $('#enterWalletPasswordModal').modal('show');
+        } else {
+            $('#mintNFTModal').modal('show');
+        }
+    });
+
+    $('#mint-file').on('change', function (event) {loadFile(event)});
+
     $('#enterSendPasswordForm').submit(async function( event ) { 
         event.preventDefault();
         try {
@@ -89,10 +100,211 @@ $(document).ready(async function() {
         event.preventDefault();
         session.activeWallet.lendTxn($('#transaction-lendAddress :selected').attr('hash'),$('#transaction-lendAddress :selected').attr('address'),$("#transaction-lendAmount").val(),$("#transaction-lendFeeAmount").val());
     });
+
+    $('#mintNFTModal').submit(async function (event) {
+        event.preventDefault();
+        session.activeWallet.mintNFT($('#mint-title').val(),$('#mint-description').val(),document.getElementById("mint-file").files[0],$('#mint-fee').val())
+    })
+
+    $('.show-marketplace').click(function (event){
+        event.preventDefault();
+        $('#main-window').addClass("visually-hidden");
+        $('#nft-marketplace-window').removeClass("visually-hidden");
+        showOwnedNFTs();
+        let closeCanvas = document.querySelector('[data-bs-dismiss="offcanvas"]');
+        closeCanvas.click();
+    })
+
+    $('.show-main').click(function (event){
+        event.preventDefault();
+        $('#main-window').removeClass("visually-hidden");
+        $('#nft-marketplace-window').addClass("visually-hidden");
+        let closeCanvas = document.querySelector('[data-bs-dismiss="offcanvas"]');
+        closeCanvas.click();
+    })
+
+
+    $('#transferNFTModal').submit(function (event) {
+        event.preventDefault();
+        session.activeWallet.transferNFT($('#transferNFT-previousHash').val(),$('#transferNFT-hash').val(),$('#transferNFT-sendAddress').val());
+    })
+
+    $('#listNFTModal').submit(function (event) {
+        event.preventDefault();
+        session.activeWallet.listNFT($('#listNFT-hash').val(),$('#listNFT-fee').val());
+    })
+
+    $('#placeBidNFTForm').submit(function (event) {
+        event.preventDefault();
+        session.activeWallet.placeBid($('#placeBidNFT-hash').val(),$('#placeBidNFT-currentOwner').val(),$('#placeBidNFT-bidAmount').val(),$('#placeBidNFT-bidFee').val());
+    })
+
+    $('#acceptBidForm').submit(function (event) {
+        event.preventDefault();
+        session.activeWallet.acceptBid($('#acceptBid-previousHash').val(),$('#acceptBid-hash').val(),$('#acceptBid-pAddress').val(),$('#acceptBid-bidHash').val());
+    });
+
+    $('#delistNFTForm').submit(function (event) {
+        event.preventDefault();
+        session.activeWallet.delistNFT($('#delistNFT-hash').val());
+    });
     
     await updateWallets()
     
 });
+
+function showOwnedNFTs() {
+    $('#owned-nfts-row').empty();
+    $('#listed-nfts-row').empty();
+    $.getJSON( session.webServer + "/mintNFT?address=" + session.activeWallet.address).done(( data ) => {
+        try {
+            if (data.ownedNFTs.length > 0) {
+                for (var i = 0; i < data.ownedNFTs.length; i++) {
+                    var htmlValue = ""
+                    if (!data.listedNFTs.some(a=> a.hash == data.ownedNFTs[i].hash)) {
+                        htmlValue = 
+                        '<div class="owned-nft-item col"> \
+                            <div class="card shadow-sm p-2"> \
+                                <img src="' + data.ownedNFTs[i].bytes + '" class="img-thumbnail border-0" alt="W3Schools.com"> \
+                                <div class="p-0 card-body"> \
+                                    <p class="card-text"><strong>' + data.ownedNFTs[i].title + '</strong></p> \
+                                    <p class="card-text">' + data.ownedNFTs[i].description + '</p> \
+                                    <div class="text-center"> \
+                                        <button type="button" class="list-btn btn btn-sm btn-outline-primary w-100 mb-1" hash="' + data.ownedNFTs[i].hash + '" previousHash="' + data.ownedNFTs[i].previousHash + '">List</button> \
+                                        <button type="button" class="transfer-btn btn btn-sm btn-outline-primary w-100" hash="' + data.ownedNFTs[i].hash + '" previousHash="' + data.ownedNFTs[i].previousHash + '">Transfer</button> \
+                                    </div> \
+                                </div> \
+                            </div> \
+                        </div>'
+                    } else {
+                        htmlValue = 
+                        '<div class="owned-nft-item col"> \
+                            <div class="card shadow-sm p-2"> \
+                                <img src="' + data.ownedNFTs[i].bytes + '" class="img-thumbnail border-0" alt="W3Schools.com"> \
+                                <div class="p-0 card-body"> \
+                                    <p class="card-text"><strong>' + data.ownedNFTs[i].title + '</strong></p> \
+                                    <p class="card-text">' + data.ownedNFTs[i].description + '</p> \
+                                    <div class="text-center"> \
+                                        <button type="button" class="delist-btn btn btn-sm btn-outline-primary w-100 mb-1" hash="' + data.ownedNFTs[i].hash + '" previousHash="' + data.ownedNFTs[i].previousHash + '">Delist</button> \
+                                        <button type="button" class="transfer-btn btn btn-sm btn-outline-primary w-100 mb-1" hash="' + data.ownedNFTs[i].hash + '" previousHash="' + data.ownedNFTs[i].previousHash + '">Transfer</button> \
+                                        <button type="button" class="show-bids-btn btn btn-sm btn-outline-primary w-100" hash="' + data.ownedNFTs[i].hash + '" previousHash="' + data.ownedNFTs[i].previousHash + '">Show Bids</button> \
+                                    </div> \
+                                </div> \
+                            </div> \
+                        </div>'
+                    }
+                    
+                }
+                $('#owned-nfts-row').append(htmlValue);
+                $('.transfer-btn').click(function (event) {
+                    if (session.activeWallet.key == null){
+                        $('#enterWalletPasswordModal').attr('redirect','#transferNFTModal')
+                        $('#enterWalletPasswordModal').modal('show');
+                    } else {
+                        $('#transferNFTModal').modal('show');
+                    }
+                    $('#transferNFT-hash').val($(event.target).attr('hash'));
+                    $('#transferNFT-previousHash').val($(event.target).attr('previousHash'));
+                });
+                $('.list-btn').click(function (event) {
+                    if (session.activeWallet.key == null){
+                        $('#enterWalletPasswordModal').attr('redirect','#listNFTModal')
+                        $('#enterWalletPasswordModal').modal('show');
+                    } else {
+                        $('#listNFTModal').modal('show');
+                    }
+                    $('#listNFT-hash').val($(event.target).attr('hash'));
+                });
+                $('.delist-btn').click(function (event){
+                    if (session.activeWallet.key == null){
+                        $('#enterWalletPasswordModal').attr('redirect','#delistNFTModal')
+                        $('#enterWalletPasswordModal').modal('show');
+                    } else {
+                        $('#delistNFTModal').modal('show');
+                    }
+                    $('#delistNFT-hash').val($(event.target).attr('hash'));
+                });
+                $('.show-bids-btn').click(async function (event) {
+                    await showBids($(event.target).attr('hash'),$(event.target).attr('previoushash'));
+                    $('#showBidNFTModal').modal('show');
+                    //$('#listNFT-hash').val($(event.target).attr('hash'));
+                });
+            }
+            if (data.listedNFTs.length > 0) {
+                for (var i = 0; i < data.listedNFTs.length; i++) {
+                    var htmlValue = '<div class="owned-nft-item col"> \
+                    <div class="card shadow-sm p-2"> \
+                        <img src="' + data.listedNFTs[i].bytes + '" class="img-thumbnail border-0" alt="W3Schools.com"> \
+                        <div class="p-0 card-body"> \
+                            <p class="card-text"><strong>' + data.listedNFTs[i].title + '</strong></p> \
+                            <p class="card-text">' + data.listedNFTs[i].description + '</p> \
+                            <div class="text-center"> \
+                                <button type="button" class="bid-btn btn btn-sm btn-outline-primary w-100 mb-1" hash="' + data.listedNFTs[i].hash + '" previousHash="' + data.listedNFTs[i].previousHash + '" currentOwner="' + data.listedNFTs[i].currentOwner + '">Bid</button> \
+                            </div> \
+                        </div> \
+                    </div> \
+                    </div>'
+                }
+                $('#listed-nfts-row').append(htmlValue);
+                $('.bid-btn').click(function (event) {
+                    if (session.activeWallet.key == null){
+                        $('#enterWalletPasswordModal').attr('redirect','#placeBidNFTModal')
+                        $('#enterWalletPasswordModal').modal('show');
+                    } else {
+                        $('#placeBidNFTModal').modal('show');
+                    }
+                    $('#placeBidNFT-hash').val($(event.target).attr('hash'));
+                    $('#placeBidNFT-currentOwner').val($(event.target).attr('currentOwner'));
+                });
+            }
+        } catch (e) {console.log(e);}
+        
+    }).fail(function(xhr, status, error) {
+        console.log("Failed");
+        //showError($('#sendTransactionModal'),"Unable to Send Transaction");
+        //$('#sendTransactionForm').trigger("reset");
+    });
+}
+
+async function showBids(showBids, prevHash) {
+    return new Promise(async function(resolve, reject) {
+        $.getJSON( session.webServer + "/placeBid?nft=" + showBids).done(( data ) => {
+            var parent = $('#showBids');
+            for (var i = 0; i < data.bids.length; i++) {
+                var row = document.createElement("div");
+                $(row).addClass('row pt-1');
+                var row_contents = ""
+                $(parent).append(row);
+                row_contents += '<div class="col-4 border-end text-center"><p class="fw-light text-secondary text-truncate">' + data.bids[i].hash + '</p></div>'
+                row_contents += '<div class="col-4 border-end text-center"><p class="fw-light text-secondary text-end">' + Number(data.bids[i].amount).toFixed(5) +  '</p></div>'
+                row_contents += 
+                '<div class="col-4 text-center"><p class="fw-light text-secondary text-end"> \
+                    <div class="text-center"> \
+                        <button type="button" class="acceptBid-btn btn btn-sm btn-outline-primary w-100 mb-1" bidHash="' + data.bids[i].hash + '" nftHash="' + showBids + '" address="' + data.bids[i].address + '" prevHash="' + prevHash + '"  amount="' + Number(data.bids[i].amount).toFixed(5) + '">Accept</button> \
+                    </div>\
+                </div>'
+                $(row).append(row_contents);
+            }
+            $('.acceptBid-btn').click(function (event) {
+                if (session.activeWallet.key == null){
+                    $('#enterWalletPasswordModal').attr('redirect','#acceptBidModal')
+                    $('#enterWalletPasswordModal').modal('show');
+                } else {
+                    $('#acceptBidModal').modal('show');
+                }
+                $('#acceptBid-hash').val($(event.target).attr('nftHash'));
+                $('#acceptBid-previousHash').val($(event.target).attr('prevHash'));
+                $('#acceptBid-bidHash').val($(event.target).attr('bidHash'));
+                $('#acceptBid-pAddress').val($(event.target).attr('address'));
+                $('#acceptBid-amount').val($(event.target).attr('amount'));
+            });
+            resolve();
+        }).fail(function(xhr, status, error) {
+            console.log("Failed");
+            resolve();
+        });
+    })
+}
 
 async function showLendTransaction() {
     return new Promise(async function(resolve, reject) {
@@ -232,6 +444,7 @@ function resetScreen() {
     $('#createWalletForm').trigger("reset");
     $('#importWalletForm').trigger("reset");
     $('#draggableWords').empty();
+    $('#owned-nfts-row').empty();
     $('#wordContainer').remove();
     $('#createdMnemonic').html("");
 }
@@ -264,14 +477,15 @@ async function updateWallets() {
         $("#main-window").addClass('visually-hidden');
         $("#startup-window").removeClass('visually-hidden');
     } else {
+        $(".wallet").removeClass("visually-hidden");
         $("#main-window").removeClass('visually-hidden');
         $("#startup-window").addClass('visually-hidden');
         for (var i = 0; i < wallets.length; i++) {
             if (i == 0) {
                 $("#walletSelection").append("<option selected value='" + i + "'>" + wallets[i].name + "</option>");
                 await session.setActiveWallet(i);
-                $("#walletAddress").text(session.activeWallet.address);
-                $("#walletBalance").text(Number(session.activeWallet.balance).toFixed(2));
+                $(".walletAddress").text(session.activeWallet.address);
+                $(".walletBalance").text(Number(session.activeWallet.balance).toFixed(2));
                 showTransactions(session.activeWallet.transactions);
             } else {
                 $("#walletSelection").append("<option value='" + i + "'>" + wallets[i].name + "</option>");
@@ -282,7 +496,12 @@ async function updateWallets() {
 
 async function walletChanged(i) {
     await session.setActiveWallet(i);
-    $("#walletAddress").text(session.activeWallet.address);
-    $("#walletBalance").text(Number(session.activeWallet.balance).toFixed(2));
-    showTransactions(session.activeWallet.transactions);
+    $(".walletAddress").text(session.activeWallet.address);
+    $(".walletBalance").text(Number(session.activeWallet.balance).toFixed(2));
+    if (!$("#nft-marketplace-window").hasClass('visually-hidden')) {
+        showOwnedNFTs();
+    } else {
+        showTransactions(session.activeWallet.transactions);
+    }
+    
 }

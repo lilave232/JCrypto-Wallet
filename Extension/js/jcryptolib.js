@@ -239,7 +239,7 @@ class TransactionOutput {
     constructor (address,value) {
         this.address = address;
         this.value = value;
-        this.hash = CryptoJS.SHA256(this.address + toNumberString(this.value)).toString();
+        this.hash = CryptoJS.SHA256(this.address).toString();
     }
 
     getHash() {
@@ -282,6 +282,54 @@ class Transaction {
 
 }
 
+class NFTTransfer {
+    constructor(previousHash, nftHash, saleTransaction, transferToAddress, key) {
+        this.transferDate = Date.now();
+        this.previousHash = previousHash;
+        this.nftHash = nftHash;
+        this.saleTransaction = saleTransaction;
+        this.transferToAddress = transferToAddress;
+        if (typeof saleTransaction.getHash === 'function') {
+            this.hash = CryptoJS.SHA256(this.transferDate + this.nftHash + this.previousHash + this.transferToAddress + saleTransaction.getHash()).toString();
+        } else {
+            this.hash = CryptoJS.SHA256(this.transferDate + this.nftHash + this.previousHash + this.transferToAddress + saleTransaction).toString();
+        }
+        this.key = hexToDec(toHexString(key.getPublic().encode().slice(1,65)));
+        this.signature = jcrypto.signMsg(this.hash,key);
+    }
+
+    getHash() {
+        return this.hash;
+    }
+}
+
+class NFTList {
+    constructor(nftHash, feeTransaction, key) {
+        this.timestamp = Date.now();
+        this.nftHash = nftHash;
+        this.feeTransaction = feeTransaction;
+        this.hash = CryptoJS.SHA256(this.timestamp + this.nftHash + feeTransaction.getHash()).toString();
+        this.key = hexToDec(toHexString(key.getPublic().encode().slice(1,65)));
+        this.signature = jcrypto.signMsg(this.hash,key);
+    }
+    getHash() {
+        return this.hash;
+    }
+}
+
+class NFTDelist {
+    constructor(nftHash, key) {
+        this.timestamp = Date.now();
+        this.nftHash = nftHash;
+        this.hash = CryptoJS.SHA256(this.timestamp + this.nftHash).toString();
+        this.key = hexToDec(toHexString(key.getPublic().encode().slice(1,65)));
+        this.signature = jcrypto.signMsg(this.hash,key);
+    }
+    getHash() {
+        return this.hash;
+    }
+}
+
 class LendContract {
     constructor(lenderAddress, borrowContractHash, lendTransaction, key) {
         this.inceptionDate = Date.now();
@@ -298,6 +346,44 @@ class LendContract {
         return this.hash;
     }
 
+}
+
+class NFT {
+    constructor(initiatorAddress, mintFee, fileType, title, description, data, key) {
+        this.initiatorAddress = initiatorAddress;
+        this.inceptionDate = Date.now();
+        this.mintFee = mintFee;
+        this.fileType = fileType;
+        this.title = title;
+        this.description = description;
+        const hashArray = Array.from(new Uint8Array(data));
+        const file_hash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+        this.hash = CryptoJS.SHA256(this.inceptionDate + this.initiatorAddress + file_hash + this.mintFee.getHash()).toString();
+        this.key = hexToDec(toHexString(key.getPublic().encode().slice(1,65)));
+        this.signature = jcrypto.signMsg(this.hash,key);
+    }
+
+    getHash() {
+        return this.hash;
+    }
+}
+
+class Bid {
+    constructor(contractHash, bidTransaction, key) {
+        this.timestamp = Date.now();
+        this.contractHash = contractHash;
+        this.key = hexToDec(toHexString(key.getPublic().encode().slice(1,65)));
+        this.transaction = bidTransaction;
+        for (var i = 0; i < this.transaction.inputs.length; i++) {
+            this.transaction.inputs[i].outputSignature = null;
+        }
+        this.hash = CryptoJS.SHA256(this.timestamp + this.contractHash + this.transaction.getHash()).toString();
+        this.signature = jcrypto.signMsg(this.hash,key);
+    }
+
+    getHash() {
+        return this.hash;
+    }
 }
 
 class Wallet {
@@ -347,24 +433,26 @@ class Wallet {
 
     async getBalance() {
         return new Promise(async (resolve, reject) => {
-            const loadedData = await this.loadBalance();
-            if (loadedData == null) {
-                chrome.storage.local.get(['walletInfo'], async (result) => {
-                    try {
-                        const data = result.walletInfo[this.address];
-                        this.setBalance(Number(data.balance).toFixed(2));
-                        this.setUTXOS(data.utxos);
-                        this.setTransactions(data.transactions);
-                        resolve();
-                    } catch (e) {
-                        resolve();
-                    }
-                });
-            } else {
-                await this.saveWalletInfo();
-                console.log("Saving Data");
-                resolve();
-            }
+            const loadedData = null;
+            //const loadedData = await this.loadBalance();
+            chrome.storage.local.get(['walletInfo'], async (result) => {
+                try {
+                    const data = result.walletInfo[this.address];
+                    this.setBalance(Number(data.balance).toFixed(2));
+                    this.setUTXOS(data.utxos);
+                    this.setTransactions(data.transactions);
+                    resolve();
+                } catch (e) {
+                    resolve();
+                }
+            });
+            this.loadBalance();
+            //if (loadedData == null) {
+            //} else {
+            //    await this.saveWalletInfo();
+            //    console.log("Saving Data");
+            //    resolve();
+            //}
         });
     }
 
@@ -374,6 +462,9 @@ class Wallet {
                 this.setBalance(Number(data.Usable_Balance).toFixed(2));
                 this.setUTXOS(data.UTXOS);
                 this.setTransactions(data.Transactions);
+                $(".walletAddress").text(this.session.activeWallet.address);
+                $(".walletBalance").text(Number(data.Usable_Balance).toFixed(2));
+                showTransactions(this.session.activeWallet.transactions);
                 resolve(0);
                 //resolve(Number(data.Usable_Balance).toFixed(2));    
             },"json").fail(function(xhr, status, error) {
@@ -394,13 +485,18 @@ class Wallet {
         var transaction = new Transaction();
         var key = this.session.activeWallet.key;
         var signature = jcrypto.signMsg(this.session.activeWallet.address,key);
-        for (var i = 0; i < unused.length; i++) {
-            input_value += unused[i].amount;
-            transaction.addInput(new TransactionInput(unused[i].hash, unused[i].output,signature,signature.public));
-            //inputs.push({'previousTxn':unused[i].hash,'index':unused[i].output,'signature':jcrypto.signMsg(this.session.activeWallet.address,key)});
-            if (input_value >= parseFloat(amount) + parseFloat(fee)) break;
+        if ((amount+fee) > 0 ) {
+            for (var i = 0; i < unused.length; i++) {
+                input_value += unused[i].amount;
+                transaction.addInput(new TransactionInput(unused[i].hash, unused[i].output,signature,signature.public));
+                //inputs.push({'previousTxn':unused[i].hash,'index':unused[i].output,'signature':jcrypto.signMsg(this.session.activeWallet.address,key)});
+                if (input_value >= parseFloat(amount) + parseFloat(fee)) break;
+            }
         }
-        transaction.addOutput(new TransactionOutput(address,parseFloat(amount)));
+        
+        if (amount > 0 ) {
+            transaction.addOutput(new TransactionOutput(address,parseFloat(amount)));
+        }
         if (input_value > (parseFloat(amount) + parseFloat(fee))) {
             transaction.addOutput(new TransactionOutput(this.session.activeWallet.address,input_value - (parseFloat(amount) + parseFloat(fee))));
         } else if (input_value < (parseFloat(amount) + parseFloat(fee))) {
@@ -429,7 +525,7 @@ class Wallet {
 
     lendTxn(borrowContract, address, amount, fee) {
         if (amount > 0) {
-            var transaction = this.getTxn(address,amount,fee);
+            var transaction = this.getTxn(address,parseFloat(amount),parseFloat(fee));
             if (transaction == false) {
                 showError($('#lendTransactionModal'),"Insufficient Funds!");
                 return;
@@ -444,6 +540,97 @@ class Wallet {
                 $('#lendTransactionForm').trigger("reset");
             });
         }
+    }
+
+    async mintNFT(title, description, file, fee) {
+        var formData = new FormData();
+        const arrayBuffer = await file.arrayBuffer();
+        const msgUint8 = new Uint8Array(arrayBuffer);
+        const hashBuffer = await crypto.subtle.digest("SHA-256", msgUint8);
+        var transaction = this.getTxn("",0,fee);
+        if (transaction == false) {
+            showError($('#mintNFTModal'),"Insufficient Funds!");
+            return;
+        }
+        var nft = new NFT(this.getAddress(),transaction,file.type,title,description,hashBuffer,this.key);
+        console.log(nft.getHash());
+        formData.append("myFile", document.getElementById("mint-file").files[0]);
+        formData.append("nft",btoa(JSON.stringify(nft)));
+
+        var xhr = new XMLHttpRequest();
+        xhr.open("POST", this.session.webServer + "/mintNFT");
+        xhr.send(formData);
+        xhr.addEventListener("load", function (evt) {
+            showSuccess($('#mintNFTModal'),"NFT Minted!")
+            $('#mintNFTForm').trigger("reset");
+        });
+        xhr.addEventListener("error", function (evt) {
+            showError($('#mintNFTModal'),"Unable to Mint NFT");
+            $('#mintNFTForm').trigger("reset");
+        });
+    }
+
+    transferNFT(previousHash, nftHash, transferToAddress) {
+        const saleTransaction = new Transaction();
+        const nftTransfer = new NFTTransfer(previousHash, nftHash, saleTransaction, transferToAddress, this.key);
+        $.post( this.session.webServer + "/transferNFT", {nftTransfer:btoa(JSON.stringify(nftTransfer))}).done(( data ) => {
+            showSuccess($('#transferNFTModal'),"NFT Transferred!")
+            $('#transferNFTForm').trigger("reset");
+            //resolve(Number(data.Usable_Balance).toFixed(2));    
+        }).fail(function(xhr, status, error) {
+            showError($('#transferNFTModal'),"Unable to Transfer NFT");
+            $('#transferNFTForm').trigger("reset");
+        });
+    }
+
+    listNFT(nftHash, fee) {
+        const transaction = this.getTxn("",parseFloat(0),parseFloat(fee));
+        const nftList = new NFTList(nftHash, transaction, this.key);
+        $.post( this.session.webServer + "/listNFT", {nftList:btoa(JSON.stringify(nftList))}).done(( data ) => {
+            showSuccess($('#listNFTModal'),"NFT Listed!")
+            $('#listNFTForm').trigger("reset");
+            //resolve(Number(data.Usable_Balance).toFixed(2));    
+        }).fail(function(xhr, status, error) {
+            showError($('#listNFTModal'),"Unable to List NFT!");
+            $('#listNFTForm').trigger("reset");
+        });
+    }
+
+    placeBid(nftHash, currentOwner, amount, fee) {
+        const transaction = this.getTxn(currentOwner, amount, fee);
+        const bid = new Bid(nftHash,transaction,this.key);
+        $.post( this.session.webServer + "/placeBid", {bid:btoa(JSON.stringify(bid))}).done(( data ) => {
+            showSuccess($('#placeBidNFTModal'),"Bid Placed!")
+            $('#placeBidNFTForm').trigger("reset");
+            //resolve(Number(data.Usable_Balance).toFixed(2));    
+        }).fail(function(xhr, status, error) {
+            showError($('#placeBidNFTModal'),"Unable to Place Bid");
+            $('#placeBidNFTForm').trigger("reset");
+        });
+    }
+
+    acceptBid(previousHash, nftHash, transferToAddress, bidHash) {
+        const nftTransfer = new NFTTransfer(previousHash, nftHash, bidHash, transferToAddress, this.key);
+        $.post( this.session.webServer + "/acceptBid", {acceptBid:btoa(JSON.stringify(nftTransfer))}).done(( data ) => {
+            showSuccess($('#acceptBidModal'),"Bid Accepted!")
+            $('#acceptBidForm').trigger("reset");
+            //resolve(Number(data.Usable_Balance).toFixed(2));    
+        }).fail(function(xhr, status, error) {
+            showError($('#acceptBidModal'),"Unable to Accept Bid");
+            $('#acceptBidForm').trigger("reset");
+        });
+    }
+
+    delistNFT(nftHash) {
+        const nftDelist = new NFTDelist(nftHash, this.key);
+        $.post( this.session.webServer + "/delistNFT", {nftDelist:btoa(JSON.stringify(nftDelist))}).done(( data ) => {
+            showSuccess($('#delistNFTModal'),"NFT Delisted!")
+            $('#delistNFTForm').trigger("reset");
+            //resolve(Number(data.Usable_Balance).toFixed(2));    
+        }).fail(function(xhr, status, error) {
+            showError($('#delistNFTModal'),"Unable to delist NFT!");
+            $('#delistNFTForm').trigger("reset");
+        });
     }
 
     async saveWalletInfo() {
