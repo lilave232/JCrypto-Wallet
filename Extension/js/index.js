@@ -160,42 +160,35 @@ function showOwnedNFTs() {
         try {
             if (data.ownedNFTs.length > 0) {
                 for (var i = 0; i < data.ownedNFTs.length; i++) {
-                    var htmlValue = ""
-                    if (!data.listedNFTs.some(a=> a.hash == data.ownedNFTs[i].hash)) {
-                        htmlValue = 
-                        '<div class="owned-nft-item col"> \
-                            <div class="card shadow-sm p-2"> \
-                                <img src="' + data.ownedNFTs[i].bytes + '" class="img-thumbnail border-0" alt="W3Schools.com"> \
-                                <div class="p-0 card-body"> \
-                                    <p class="card-text"><strong>' + data.ownedNFTs[i].title + '</strong></p> \
-                                    <p class="card-text">' + data.ownedNFTs[i].description + '</p> \
-                                    <div class="text-center"> \
-                                        <button type="button" class="list-btn btn btn-sm btn-outline-primary w-100 mb-1" hash="' + data.ownedNFTs[i].hash + '" previousHash="' + data.ownedNFTs[i].previousHash + '">List</button> \
-                                        <button type="button" class="transfer-btn btn btn-sm btn-outline-primary w-100" hash="' + data.ownedNFTs[i].hash + '" previousHash="' + data.ownedNFTs[i].previousHash + '">Transfer</button> \
-                                    </div> \
-                                </div> \
-                            </div> \
-                        </div>'
+                    var htmlValue = 
+                    '<div class="owned-nft-item col"> \
+                        <div class="owned-nft-card card shadow-sm p-2 h-100"> \
+                        </div> \
+                    </div>'
+                    $('#owned-nfts-row').append(htmlValue);
+                    var cardHTML = '<div class="p-0 card-body d-flex flex-column"><div class="d-flex flex-column justify-content-center h-50">'
+                    if (data.ownedNFTs[i].type.includes('image')) {
+                        cardHTML += '<img src="' + data.ownedNFTs[i].bytes + '" class="img-thumbnail border-0" alt="W3Schools.com">';
+                    } else if (data.ownedNFTs[i].type.includes('audio')) {
+                        cardHTML += '<audio controls src="' + data.ownedNFTs[i].bytes + '" class="w-100"></audio>'
                     } else {
-                        htmlValue = 
-                        '<div class="owned-nft-item col"> \
-                            <div class="card shadow-sm p-2"> \
-                                <img src="' + data.ownedNFTs[i].bytes + '" class="img-thumbnail border-0" alt="W3Schools.com"> \
-                                <div class="p-0 card-body"> \
-                                    <p class="card-text"><strong>' + data.ownedNFTs[i].title + '</strong></p> \
-                                    <p class="card-text">' + data.ownedNFTs[i].description + '</p> \
-                                    <div class="text-center"> \
-                                        <button type="button" class="delist-btn btn btn-sm btn-outline-primary w-100 mb-1" hash="' + data.ownedNFTs[i].hash + '" previousHash="' + data.ownedNFTs[i].previousHash + '">Delist</button> \
-                                        <button type="button" class="transfer-btn btn btn-sm btn-outline-primary w-100 mb-1" hash="' + data.ownedNFTs[i].hash + '" previousHash="' + data.ownedNFTs[i].previousHash + '">Transfer</button> \
-                                        <button type="button" class="show-bids-btn btn btn-sm btn-outline-primary w-100" hash="' + data.ownedNFTs[i].hash + '" previousHash="' + data.ownedNFTs[i].previousHash + '">Show Bids</button> \
-                                    </div> \
-                                </div> \
-                            </div> \
-                        </div>'
+                        continue;
                     }
-                    
+                    cardHTML += '</div><div class="flex-grow-1"><p class="card-text"><strong>' + data.ownedNFTs[i].title + '</strong></p> \
+                        <p class="card-text">' + data.ownedNFTs[i].description + '</p> \
+                        <div class="text-center">'
+                    if (!data.listedNFTs.some(a=> a.hash == data.ownedNFTs[i].hash)) { 
+                        cardHTML += '<button type="button" class="list-btn btn btn-sm btn-outline-primary w-100 mb-1" hash="' + data.ownedNFTs[i].hash + '" previousHash="' + data.ownedNFTs[i].previousHash + '">List</button>'
+                    } else {
+                        cardHTML += '<button type="button" class="delist-btn btn btn-sm btn-outline-primary w-100 mb-1" hash="' + data.ownedNFTs[i].hash + '" previousHash="' + data.ownedNFTs[i].previousHash + '">Delist</button>'
+                        cardHTML += '<button type="button" class="show-bids-btn btn btn-sm btn-outline-primary w-100 mb-1" hash="' + data.ownedNFTs[i].hash + '" previousHash="' + data.ownedNFTs[i].previousHash + '">Show Bids</button>'
+                    }
+                    cardHTML += 
+                    '</div><button type="button" class="transfer-btn btn btn-sm btn-outline-primary w-100" hash="' + data.ownedNFTs[i].hash + '" previousHash="' + data.ownedNFTs[i].previousHash + '">Transfer</button> \
+                        </div> \
+                    </div>'
+                    $('.owned-nft-card').eq(i).append(cardHTML);
                 }
-                $('#owned-nfts-row').append(htmlValue);
                 $('.transfer-btn').click(function (event) {
                     if (session.activeWallet.key == null){
                         $('#enterWalletPasswordModal').attr('redirect','#transferNFTModal')
@@ -232,20 +225,29 @@ function showOwnedNFTs() {
             }
             if (data.listedNFTs.length > 0) {
                 for (var i = 0; i < data.listedNFTs.length; i++) {
-                    var htmlValue = '<div class="owned-nft-item col"> \
-                    <div class="card shadow-sm p-2"> \
-                        <img src="' + data.listedNFTs[i].bytes + '" class="img-thumbnail border-0" alt="W3Schools.com"> \
-                        <div class="p-0 card-body"> \
-                            <p class="card-text"><strong>' + data.listedNFTs[i].title + '</strong></p> \
-                            <p class="card-text">' + data.listedNFTs[i].description + '</p> \
-                            <div class="text-center"> \
-                                <button type="button" class="bid-btn btn btn-sm btn-outline-primary w-100 mb-1" hash="' + data.listedNFTs[i].hash + '" previousHash="' + data.listedNFTs[i].previousHash + '" currentOwner="' + data.listedNFTs[i].currentOwner + '">Bid</button> \
-                            </div> \
+                    var htmlValue = 
+                    '<div class="listed-nft-item col"> \
+                        <div class="listed-nft-card card shadow-sm p-2 h-100"> \
                         </div> \
-                    </div> \
                     </div>'
+                    $('#listed-nfts-row').append(htmlValue);
+                    var cardHTML = '<div class="p-0 card-body d-flex flex-column"><div class="d-flex flex-column justify-content-center h-50">'
+                    if (data.listedNFTs[i].type.includes('image')) {
+                        cardHTML += '<img src="' + data.listedNFTs[i].bytes  + '" class="img-thumbnail border-0" alt="W3Schools.com">';
+                    } else if (data.listedNFTs[i].type.includes('audio')) {
+                        cardHTML += '<audio controls src="' + data.listedNFTs[i].bytes + '" class="w-100"></audio>'
+                    } else {
+                        continue;
+                    }
+                    cardHTML += '</div><div class="flex-grow-1"><p class="card-text"><strong>' + data.listedNFTs[i].title + '</strong></p> \
+                        <p class="card-text">' + data.listedNFTs[i].description + '</p> \
+                        <div class="text-center">'
+                    cardHTML += 
+                    '</div><button type="button" class="bid-btn btn btn-sm btn-outline-primary w-100 mb-1" hash="' + data.listedNFTs[i].hash + '" previousHash="' + data.listedNFTs[i].previousHash + '" currentOwner="' + data.listedNFTs[i].currentOwner + '">Bid</button> \
+                        </div> \
+                    </div>'
+                    $('.listed-nft-card').eq(i).append(cardHTML);
                 }
-                $('#listed-nfts-row').append(htmlValue);
                 $('.bid-btn').click(function (event) {
                     if (session.activeWallet.key == null){
                         $('#enterWalletPasswordModal').attr('redirect','#placeBidNFTModal')
@@ -267,6 +269,7 @@ function showOwnedNFTs() {
 }
 
 async function showBids(showBids, prevHash) {
+    $('#showBids').empty();
     return new Promise(async function(resolve, reject) {
         $.getJSON( session.webServer + "/placeBid?nft=" + showBids).done(( data ) => {
             var parent = $('#showBids');

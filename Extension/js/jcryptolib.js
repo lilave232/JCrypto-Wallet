@@ -465,6 +465,7 @@ class Wallet {
                 $(".walletAddress").text(this.session.activeWallet.address);
                 $(".walletBalance").text(Number(data.Usable_Balance).toFixed(2));
                 showTransactions(this.session.activeWallet.transactions);
+                this.saveWalletInfo();
                 resolve(0);
                 //resolve(Number(data.Usable_Balance).toFixed(2));    
             },"json").fail(function(xhr, status, error) {
@@ -645,6 +646,7 @@ class Wallet {
     }
 }
 
+//var session = new Session('http://localhost:8081');
 //var session = new Session('http://jcrypto.ddns.net:55555');
 var session = new Session('http://localhost:8080');
 var jcrypto = new JCrypto(session);
