@@ -148,6 +148,10 @@ $(document).ready(async function() {
         event.preventDefault();
         session.activeWallet.delistNFT($('#delistNFT-hash').val());
     });
+
+    $('#refresh-btn').click(function (event) {
+        walletChanged($('#walletSelection').val());
+    })
     
     await updateWallets()
     
