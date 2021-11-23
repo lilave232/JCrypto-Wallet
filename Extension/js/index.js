@@ -152,8 +152,12 @@ $(document).ready(async function() {
     $('#refresh-btn').click(function (event) {
         walletChanged($('#walletSelection').val());
     })
+
+    $('.update-wallets').click(async function (event) {
+        await updateWallets();
+    })
     
-    await updateWallets()
+    await updateWallets();
     
 });
 
@@ -480,13 +484,17 @@ function showTransactions(transactions) {
 
 async function updateWallets() {
     wallets = await session.getWallets();
+    $("#walletSelection").empty();
     if (wallets.length == 0) {
         $("#main-window").addClass('visually-hidden');
         $("#startup-window").removeClass('visually-hidden');
     } else {
         $(".wallet").removeClass("visually-hidden");
-        $("#main-window").removeClass('visually-hidden');
-        $("#startup-window").addClass('visually-hidden');
+        if (!$("#startup-window").hasClass('visually-hidden')) {
+            $("#main-window").removeClass('visually-hidden');
+            $("#startup-window").addClass('visually-hidden');
+        }
+        
         for (var i = 0; i < wallets.length; i++) {
             if (i == 0) {
                 $("#walletSelection").append("<option selected value='" + i + "'>" + wallets[i].name + "</option>");

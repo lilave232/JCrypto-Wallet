@@ -24,9 +24,11 @@ class Session {
     async loadWallets () {
         return new Promise(function(resolve, reject) {
             chrome.storage.local.get(['wallets'], function(result) {
+                session.wallets = [];
                 if ('wallets' in result) {
-                    for (var i = 0; i < result.wallets.length; i++) {
-                        var wallet = new Wallet(this.session, result.wallets[i].walletName, result.wallets[i].walletSeed, result.wallets[i].walletAddress)
+                    for (var i = 0; i < Object.keys(result.wallets).length; i++) {
+                        var name = Object.keys(result.wallets)[i];
+                        var wallet = new Wallet(this.session, name, result.wallets[name].walletSeed, result.wallets[name].walletAddress)
                         session.addWallet(wallet);
                     }
                 }
@@ -670,13 +672,15 @@ function importWallet(name,mnemonic,password) {
     var encryptedSeed = jcrypto.encryptSeed(seed,password);
     return new Promise(async function(resolve, reject) {
         chrome.storage.local.get(['wallets'], async (result) => {
+            info = {}
             if ('wallets' in result) {
-                result.wallets.push({walletName:name,walletSeed:encryptedSeed,walletAddress:address});
+                info = result.wallets;
+                info[name] = {walletSeed:encryptedSeed,walletAddress:address};
             } else {
-                result['wallets'] = [{walletName:name,walletSeed:encryptedSeed,walletAddress:address}];
+                info[name] = {walletSeed:encryptedSeed,walletAddress:address};
             }
             
-            chrome.storage.local.set({wallets:result.wallets});
+            chrome.storage.local.set({wallets:info});
             if ($('#createWalletModal').hasClass("show")) {
                 $('#creatingWalletSpinner').addClass("visually-hidden");
                 showSuccess($('#createWalletModal'),"Wallet Successfully Created");
@@ -685,8 +689,7 @@ function importWallet(name,mnemonic,password) {
                 $('#importWalletSpinner').addClass("visually-hidden");
                 showSuccess($('#importWalletModal'),"Wallet Successfully Imported");
             }
-            session.addWallet(new Wallet(session,name,encryptedSeed,address));
-            $("#walletSelection").append("<option value='" + (session.wallets.length-1) + "'>" + name + "</option>");
-        })
+            $('#importWalletForm').trigger("reset");
+        });
     });
 }
