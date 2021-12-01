@@ -8,6 +8,7 @@ class Session {
     }
 
     async setActiveWallet(i) {
+        chrome.storage.local.set({'activeWallet':i});
         this.activeWallet = this.wallets[i];
         await this.activeWallet.getBalance();
     }
@@ -276,6 +277,7 @@ class Transaction {
         this.outputs.push(output);
         this.output_hashes += output.getHash();
         this.hash = CryptoJS.SHA256(this.input_hashes + this.output_hashes + this.timestamp).toString();
+        return this;
     }
 
     getHash() {
@@ -398,6 +400,18 @@ class Wallet {
         this.transactions = null;
         this.utxos = null;
         this.session = session;
+        this.minFee = 0;
+    }
+
+    getFee() {
+        return new Promise((resolve, reject) => {
+            $.getJSON( this.session.webServer + "/getFee").done(( data ) => {
+                this.minFee = data.minFee;
+                resolve();
+                //resolve(Number(data.Usable_Balance).toFixed(2));    
+            }).fail(function(xhr, status, error) {
+            });
+        });
     }
 
     setTransactions(transactions) {
@@ -443,12 +457,13 @@ class Wallet {
                     this.setBalance(Number(data.balance).toFixed(2));
                     this.setUTXOS(data.utxos);
                     this.setTransactions(data.transactions);
+                    this.loadBalance();
                     resolve();
                 } catch (e) {
+                    this.loadBalance();
                     resolve();
                 }
             });
-            this.loadBalance();
             //if (loadedData == null) {
             //} else {
             //    await this.saveWalletInfo();
@@ -482,12 +497,45 @@ class Wallet {
         return address;
     }
 
+    async getQuote(address, amount, fee, returnLink) {
+        var input_value = 0;
+        var unused = this.utxos;
+        var transaction = new Transaction();
+        var key = this.key;
+        var signature = jcrypto.signMsg(this.address,key);
+        var initialFee = fee;
+        await this.getFee();
+        const additionalFee = roughSizeOfObject(new Transaction().addOutput(new TransactionOutput(address,parseFloat(amount)))) - roughSizeOfObject(transaction);
+        fee = (parseFloat(initialFee) + parseInt(roughSizeOfObject(transaction) + additionalFee*2)) * this.minFee;
+        if ((amount+fee) > 0 ) {
+            for (var j = 0; j < unused.length; j++) {
+                input_value += unused[j].amount;
+                transaction.addInput(new TransactionInput(unused[j].hash, unused[j].output,signature,signature.public));
+                fee = (parseFloat(initialFee) + parseInt(roughSizeOfObject(transaction) + additionalFee*2)) * this.minFee;
+                if (input_value >= parseFloat(amount) + parseFloat(fee)) break;
+            }
+        }
+
+        if (amount > 0 ) {
+            transaction.addOutput(new TransactionOutput(address,parseFloat(amount)));
+        }
+
+        fee = (parseFloat(initialFee) + parseInt(roughSizeOfObject(transaction) + additionalFee)) * this.minFee; 
+        if (input_value > (parseFloat(amount) + parseFloat(fee))) {
+            transaction.addOutput(new TransactionOutput(this.session.activeWallet.address,input_value - (parseFloat(amount) + parseFloat(fee))));
+        } else if (input_value < (parseFloat(amount) + parseFloat(fee))) {
+            return false;
+        }
+        $(returnLink).val(fee);
+        return transaction;
+    }
+
     getTxn(address, amount, fee) {
         var input_value = 0;
-        var unused = this.session.activeWallet.utxos;
+        var unused = this.utxos;
         var transaction = new Transaction();
-        var key = this.session.activeWallet.key;
-        var signature = jcrypto.signMsg(this.session.activeWallet.address,key);
+        var key = this.key;
+        var signature = jcrypto.signMsg(this.address,key);
         if ((amount+fee) > 0 ) {
             for (var i = 0; i < unused.length; i++) {
                 input_value += unused[i].amount;
@@ -496,21 +544,23 @@ class Wallet {
                 if (input_value >= parseFloat(amount) + parseFloat(fee)) break;
             }
         }
-        
+
         if (amount > 0 ) {
             transaction.addOutput(new TransactionOutput(address,parseFloat(amount)));
         }
+
         if (input_value > (parseFloat(amount) + parseFloat(fee))) {
             transaction.addOutput(new TransactionOutput(this.session.activeWallet.address,input_value - (parseFloat(amount) + parseFloat(fee))));
         } else if (input_value < (parseFloat(amount) + parseFloat(fee))) {
             return false;
         }
+        $('#transaction-feeAmount').val(fee);
         return transaction;
     }
 
-    sendTxn(address, amount, fee) {
+    async sendTxn(address, amount, fee) {
         if (amount > 0) {
-            var transaction = this.getTxn(address,amount,fee);
+            var transaction = this.getTxn(address,amount,fee,fee);
             if (transaction == false) {
                 showError($('#sendTransactionModal'),"Insufficient Funds!");
                 return;
@@ -518,6 +568,13 @@ class Wallet {
             $.post( this.session.webServer + "/sendTxn", {transaction:btoa(JSON.stringify(transaction))},"json").done(( data ) => {
                 showSuccess($('#sendTransactionModal'),"Transaction Sent!")
                 $('#sendTransactionForm').trigger("reset");
+                if ($('[name=pageFormAction]').length && $('[name=pageFormAction]').val()!="") {
+                    chrome.tabs.query({currentWindow: true, active: true}, function (tabs){
+                        var activeTab = tabs[0];
+                        chrome.tabs.sendMessage(activeTab.id, {"message": "sendAction","action":$('[name=pageFormAction]').val()});
+                    });
+                }
+                
                 //resolve(Number(data.Usable_Balance).toFixed(2));    
             },"json").fail(function(xhr, status, error) {
                 showError($('#sendTransactionModal'),"Unable to Send Transaction");
@@ -556,7 +613,6 @@ class Wallet {
             return;
         }
         var nft = new NFT(this.getAddress(),transaction,file.type,title,description,hashBuffer,this.key);
-        console.log(nft.getHash());
         formData.append("myFile", document.getElementById("mint-file").files[0]);
         formData.append("nft",btoa(JSON.stringify(nft)));
 

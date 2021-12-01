@@ -196,7 +196,8 @@
                     <input class="btn m-2 fs-6 text-start border-secondary flex-fill" placeholder="Fee" id="mint-fee" type="number" step="any" name="fee" required>
                 </div>
                 <div class="w-100 text-center">
-                    <input class="btn btn-secondary m-2 fs-3 text-center" type="submit" value="Mint"/>
+                  <button class="btn btn-primary" id="transaction-getNFTQuote">Get Quote</button>
+                  <input class="btn btn-secondary m-2 fs-3 text-center visually-hidden" type="submit" value="Mint" id="transaction-mintNFT"/>
                 </div>
               </form>
             </div>
@@ -259,9 +260,10 @@
                 </div>
                 <div class="d-flex align-items-center">
                   <label for="listNFT-fee" class="form-label">Fee</label>
-                  <input class="btn m-2 fs-6 text-start border-secondary flex-fill" placeholder="Fee" id="listNFT-fee" type="number" step="any" name="fee" required>
+                  <input class="btn m-2 fs-6 text-start border-secondary flex-fill" placeholder="Fee" id="listNFT-fee" type="number" step="any" name="fee">
                 </div>
-                <button type="submit" class="btn btn-primary">List NFT</button>
+                <button class="btn btn-primary" id="getListNFTQuote">Get Quote</button>
+                <button type="submit" class="btn btn-primary visually-hidden" id="listNFTBtn">List NFT</button>
               </form>
             </div>
           </div>
@@ -317,7 +319,8 @@
                   <label for="transaction-feeAmount" class="form-label">Fee</label>
                   <input type="number" class="form-control"  id="transaction-feeAmount" required min="0" value="0" step="0.00001">
                 </div>
-                <button type="submit" class="btn btn-primary">Send Transaction</button>
+                <button class="btn btn-primary" id="transaction-getQuote">Get Quote</button>
+                <button type="submit" class="btn btn-primary visually-hidden" id="transaction-sendTxn">Send Transaction</button>
               </form>
             </div>
           </div>
@@ -349,7 +352,8 @@
                   <label for="transaction-lendFeeAmount" class="form-label">Fee</label>
                   <input type="number" class="form-control"  id="transaction-lendFeeAmount" required min="0" value="0" step="0.00001">
                 </div>
-                <button type="submit" class="btn btn-primary">Lend Transaction</button>
+                <button class="btn btn-primary" id="transaction-getLendQuote">Get Quote</button>
+                <button type="submit" class="btn btn-primary visually-hidden" id="transaction-lendTxn">Lend Transaction</button>
               </form>
             </div>
           </div>
@@ -388,7 +392,8 @@
                   <label for="placeBidNFT-bidFee" class="form-label">Fee</label>
                   <input type="number" class="form-control"  id="placeBidNFT-bidFee" required min="0" value="0" step="0.00001">
                 </div>
-                <button type="submit" class="btn btn-primary">Place</button>
+                <button class="btn btn-primary" id="getFeePlaceBidNFT">Get Quote</button>
+                <button type="submit" class="btn btn-primary visually-hidden" id="placeBidNFT-place">Place Bid</button>
               </form>
             </div>
           </div>

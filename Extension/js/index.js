@@ -1,5 +1,27 @@
 $(document).ready(async function() {
 
+    chrome.tabs.query({currentWindow: true, active: true}, function (tabs){
+        var activeTab = tabs[0];
+        chrome.tabs.sendMessage(activeTab.id, {"message": "requestAction"});
+    });
+
+    chrome.runtime.onMessage.addListener(
+        function(request, sender, sendResponse) {
+            if ("paymentRequested" in request) {
+                $('#transaction-sendAddress').val(request.paymentRequested.payTo);
+                $('#transaction-sendAmount').val(request.paymentRequested.payAmount);
+                $('<input>').attr('name',"pageFormAction").attr('type','hidden').appendTo('#sendTransactionForm');
+                $('[name=pageFormAction]').val(request.paymentRequested.formSubmission);
+                if (session.activeWallet.key == null){
+                    $('#enterWalletPasswordModal').attr('redirect','#sendTransactionModal')
+                    $('#enterWalletPasswordModal').modal('show');
+                } else {
+                    $('#sendTransactionModal').modal('show');
+                }
+            }
+        }
+    );
+
     $('.walletAddress').click(function(){
         const elem = document.createElement('textarea');
         elem.value = $('.walletAddress').text();
@@ -91,20 +113,53 @@ $(document).ready(async function() {
         }
     });
 
+    $('#transaction-getQuote').click(async function (event) {
+        event.preventDefault();
+        await session.activeWallet.getQuote($('#transaction-sendAddress').val(),$("#transaction-sendAmount").val(),$("#transaction-feeAmount").val(),'#transaction-feeAmount');
+        $('#transaction-getQuote').addClass('visually-hidden');
+        $('#transaction-sendTxn').removeClass("visually-hidden");
+    });
+
     $('#sendTransactionForm').submit(async function( event ) {
         event.preventDefault();
         session.activeWallet.sendTxn($('#transaction-sendAddress').val(),$("#transaction-sendAmount").val(),$("#transaction-feeAmount").val());
+        $('#transaction-getQuote').removeClass('visually-hidden');
+        $('#transaction-sendTxn').addClass("visually-hidden");
     });
+
+    $('#transaction-getLendQuote').click(async function (event) {
+        event.preventDefault();
+        var lendContract = new LendContract(session.activeWallet.address,$('#transaction-lendAddress :selected').attr('hash'),new Transaction(),session.activeWallet.key);
+        await session.activeWallet.getQuote($('#transaction-lendAddress :selected').attr('address'),$("#transaction-lendAmount").val(),roughSizeOfObject(lendContract),'#transaction-lendFeeAmount');
+        $('#transaction-getLendQuote').addClass('visually-hidden');
+        $('#transaction-lendTxn').removeClass("visually-hidden");
+    })
 
     $('#lendTransactionForm').submit(async function( event ) {
         event.preventDefault();
         session.activeWallet.lendTxn($('#transaction-lendAddress :selected').attr('hash'),$('#transaction-lendAddress :selected').attr('address'),$("#transaction-lendAmount").val(),$("#transaction-lendFeeAmount").val());
+        $('#transaction-getLendQuote').removeClass('visually-hidden');
+        $('#transaction-lendTxn').addClass("visually-hidden");
     });
 
     $('#mintNFTModal').submit(async function (event) {
         event.preventDefault();
-        session.activeWallet.mintNFT($('#mint-title').val(),$('#mint-description').val(),document.getElementById("mint-file").files[0],$('#mint-fee').val())
-    })
+        session.activeWallet.mintNFT($('#mint-title').val(),$('#mint-description').val(),document.getElementById("mint-file").files[0],$('#mint-fee').val());
+        $('#transaction-getNFTQuote').removeClass('visually-hidden');
+        $('#transaction-mintNFT').addClass("visually-hidden");
+    });
+
+    $("#transaction-getNFTQuote").click(async function (event) {
+        event.preventDefault();
+        const arrayBuffer = await document.getElementById("mint-file").files[0].arrayBuffer();
+        const msgUint8 = new Uint8Array(arrayBuffer);
+        const hashBuffer = await crypto.subtle.digest("SHA-256", msgUint8);
+        var nft = new NFT(session.activeWallet.address,new Transaction(),document.getElementById("mint-file").files[0],$('#mint-title').val(),$('#mint-description').val(),hashBuffer,session.activeWallet.key);
+        console.log(msgUint8.length + roughSizeOfObject(nft));
+        await session.activeWallet.getQuote("",0,msgUint8.length + roughSizeOfObject(nft),'#mint-fee');
+        $('#transaction-getNFTQuote').addClass('visually-hidden');
+        $('#transaction-mintNFT').removeClass("visually-hidden");
+    });
 
     $('.show-marketplace').click(function (event){
         event.preventDefault();
@@ -132,12 +187,32 @@ $(document).ready(async function() {
     $('#listNFTModal').submit(function (event) {
         event.preventDefault();
         session.activeWallet.listNFT($('#listNFT-hash').val(),$('#listNFT-fee').val());
-    })
+        $('#getListNFTQuote').removeClass("visually-hidden");
+        $('#listNFTBtn').addClass("visually-hidden");
+    });
+
+    $('#getListNFTQuote').click(async function (event) {
+        event.preventDefault();
+        const nftList = new NFTList($('#listNFT-hash').val(), new Transaction(), session.activeWallet.key);
+        await session.activeWallet.getQuote("",0,roughSizeOfObject(nftList),'#listNFT-fee');
+        $('#getListNFTQuote').addClass("visually-hidden");
+        $('#listNFTBtn').removeClass("visually-hidden");
+    });
 
     $('#placeBidNFTForm').submit(function (event) {
         event.preventDefault();
         session.activeWallet.placeBid($('#placeBidNFT-hash').val(),$('#placeBidNFT-currentOwner').val(),$('#placeBidNFT-bidAmount').val(),$('#placeBidNFT-bidFee').val());
-    })
+        $('#getFeePlaceBidNFT').removeClass("visually-hidden");
+        $('#placeBidNFT-place').addClass("visually-hidden");
+    });
+
+    $('#getFeePlaceBidNFT').click(async function (event) {
+        event.preventDefault();
+        const bid = new Bid($('#placeBidNFT-hash').val(),new Transaction(),session.activeWallet.key);
+        await session.activeWallet.getQuote("",0,roughSizeOfObject(bid),'#placeBidNFT-bidFee');
+        $('#getFeePlaceBidNFT').addClass("visually-hidden");
+        $('#placeBidNFT-place').removeClass("visually-hidden");
+    });
 
     $('#acceptBidForm').submit(function (event) {
         event.preventDefault();
@@ -155,6 +230,28 @@ $(document).ready(async function() {
 
     $('.update-wallets').click(async function (event) {
         await updateWallets();
+    })
+
+    $('.btn-close').click(function (event){
+        $('form').trigger('reset');
+        $('[name=pageFormAction]').val('');
+        $('#mint-output').empty();
+
+        $('#transaction-getNFTQuote').removeClass('visually-hidden');
+        $('#transaction-mintNFT').addClass("visually-hidden");
+
+        $('#transaction-getQuote').removeClass('visually-hidden');
+        $('#transaction-sendTxn').addClass("visually-hidden");
+
+        $('#transaction-getLendQuote').removeClass('visually-hidden');
+        $('#transaction-lendTxn').addClass("visually-hidden");
+
+        $('#getListNFTQuote').removeClass("visually-hidden");
+        $('#listNFTBtn').addClass("visually-hidden");
+
+        $('#getFeePlaceBidNFT').removeClass("visually-hidden");
+        $('#placeBidNFT-place').addClass("visually-hidden");
+
     })
     
     await updateWallets();
@@ -321,6 +418,7 @@ async function showLendTransaction() {
     return new Promise(async function(resolve, reject) {
         $.get( session.webServer + "/getBorrowers").done(( data ) => {
             if ('borrowers' in data) {
+                $('#transaction-lendAddress').empty();
                 for (var i = 0; i < data.borrowers.length; i++) {
                     $('#transaction-lendAddress').append("<option hash='" + data.borrowers[i].hash + "'" + " address='" + data.borrowers[i].borrowerAddress + "'" + ">" + data.borrowers[i].hash + "</option>")
                 }
@@ -471,8 +569,12 @@ function showTransactions(transactions) {
         $(parent).append(row);
         if (transactions[i].type == 0) {
             row_contents = '<div class="col-2 border-end text-center"><h4 class="fw-light text-success"><i class="fas fa-sign-in-alt"></i></h4></div>'
-        } else {
+        } else if (transactions[i].type == 1) {
             row_contents = '<div class="col-2 border-end text-center"><h4 class="fw-light text-danger"><i class="fas fa-sign-out-alt"></i></h4></div>'
+        } else if (transactions[i].type == 2) {
+            row_contents = '<div class="col-2 border-end text-center"><h4 class="fw-light text-secondary"><i class="fas fa-sign-in-alt"></i></h4></div>'
+        } else if (transactions[i].type == 3) {
+            row_contents = '<div class="col-2 border-end text-center"><h4 class="fw-light text-secondary"><i class="fas fa-sign-out-alt"></i></h4></div>'
         }
         var unixTimeZero = new Date(Date.parse(transactions[i].date_string));
         row_contents += '<div class="col-4 border-end text-center"><p class="fw-light text-secondary text-truncate">' + unixTimeZero.toLocaleDateString("en-US") + '</p></div>'
@@ -498,14 +600,22 @@ async function updateWallets() {
         for (var i = 0; i < wallets.length; i++) {
             if (i == 0) {
                 $("#walletSelection").append("<option selected value='" + i + "'>" + wallets[i].name + "</option>");
-                await session.setActiveWallet(i);
-                $(".walletAddress").text(session.activeWallet.address);
-                $(".walletBalance").text(Number(session.activeWallet.balance).toFixed(2));
-                showTransactions(session.activeWallet.transactions);
             } else {
                 $("#walletSelection").append("<option value='" + i + "'>" + wallets[i].name + "</option>");
             }
         }
+        chrome.storage.local.get(['activeWallet'], async function(result) {
+            var active = 0;
+            if ("activeWallet" in result) {
+                active = result.activeWallet;
+            }
+            $('#walletSelection').val(active);
+            await session.setActiveWallet(active);
+            $(".walletAddress").text(session.activeWallet.address);
+            $(".walletBalance").text(Number(session.activeWallet.balance).toFixed(2));
+            showTransactions(session.activeWallet.transactions);
+        });
+        
     }
 }
 
