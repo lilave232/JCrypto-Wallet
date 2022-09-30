@@ -53,7 +53,7 @@ function connectWallet() {
 
 function loadBalance(address) {
     return new Promise((resolve, reject) => {
-        $.post("http://jcrypto.ddns.net:55555", { address: address }).done(( data ) => {
+        $.post("http://jcryptotestnet.ddns.net", { address: address }).done(( data ) => {
             var event = new CustomEvent('ReceivedTransactions', {detail: data.Transactions});
             window.dispatchEvent(event);
             resolve(0);

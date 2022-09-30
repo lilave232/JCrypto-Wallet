@@ -79,9 +79,10 @@ class JCrypto {
         for (var i = 0; i < new_entropy.length; i++) {
         bin_entropy += dict[parseInt(new_entropy.slice(i, i + 1), 16)];
         }
+        
         var segments = [];
         for (var i = 0; i <= 11; i++) {
-        segments.push(bin_entropy.slice(i * 11, (i + 1) * 11));
+            segments.push(bin_entropy.slice(i * 11, (i + 1) * 11));
         }
     
         const wordlist = await readTextFile();
@@ -159,12 +160,12 @@ class JCrypto {
 
     signMsg(msg, keyPair) {
         let privKey = keyPair.getPrivate("hex");
-        let msgHash = CryptoJS.SHA3(msg, { outputLength: 256 }).toString();
+        let msgHash = CryptoJS.SHA256(msg).toString();
         let signature = this.ec.sign(msgHash, privKey, "hex", {canonical: true});
         let hexToDecimal = (x) => this.ec.keyFromPrivate(x, "hex").getPrivate().toString(10);
         let pubKeyRecovered = this.ec.recoverPubKey(
             hexToDecimal(msgHash), signature, signature.recoveryParam, "hex");
-        return { public:hexToDec(toHexString(pubKeyRecovered.encode().slice(1,65))), v:signature.recoveryParam, r:signature.r.toString() , s:signature.s.toString(), message1:msg};
+        return { public:hexToDec(toHexString(pubKeyRecovered.encode().slice(1,65))), v:signature.recoveryParam, r:signature.r.toString() , s:signature.s.toString(), msg:msg};
         //sendMsg(pubKeyRecovered,signature,msg);
     }
 
@@ -225,11 +226,9 @@ class JCrypto {
 }
 
 class TransactionInput {
-    constructor (previousTxn, index, signature, key) {
+    constructor (previousTxn, index) {
         this.previousTxnHash = previousTxn;
         this.outputIndex = index;
-        this.outputSignature = signature;
-        this.key = key;
         this.hash = CryptoJS.SHA256(this.previousTxnHash + this.outputIndex).toString();
     }
 
@@ -252,7 +251,7 @@ class TransactionOutput {
 
 class Transaction {
 
-    constructor () {
+    constructor (key) {
         this.timestamp = Date.now();
         this.inputs = [];
         this.outputs = [];
@@ -260,23 +259,27 @@ class Transaction {
         this.input_hashes = "";
         this.output_hashes = "";
         this.hash = CryptoJS.SHA256(this.input_hashes + this.output_hashes + this.timestamp).toString();
+        this.signature = jcrypto.signMsg(this.hash,key);
     }
 
-    setTimestamp(timestamp) {
+    setTimestamp(timestamp,key) {
         this.timestamp = timestamp;
         this.hash = CryptoJS.SHA256(this.input_hashes + this.output_hashes + this.timestamp).toString();
+        this.signature = jcrypto.signMsg(this.hash,key);
     }
 
-    addInput(input) {
+    addInput(input,key) {
         this.inputs.push(input);
         this.input_hashes += input.getHash();
         this.hash = CryptoJS.SHA256(this.input_hashes + this.output_hashes + this.timestamp).toString();
+        this.signature = jcrypto.signMsg(this.hash,key);
     }
 
-    addOutput(output) {
+    addOutput(output,key) {
         this.outputs.push(output);
         this.output_hashes += output.getHash();
         this.hash = CryptoJS.SHA256(this.input_hashes + this.output_hashes + this.timestamp).toString();
+        this.signature = jcrypto.signMsg(this.hash,key);
         return this;
     }
 
@@ -500,29 +503,28 @@ class Wallet {
     async getQuote(address, amount, fee, returnLink) {
         var input_value = 0;
         var unused = this.utxos;
-        var transaction = new Transaction();
+        var transaction = new Transaction(this.key);
         var key = this.key;
-        var signature = jcrypto.signMsg(this.address,key);
         var initialFee = fee;
         await this.getFee();
-        const additionalFee = roughSizeOfObject(new Transaction().addOutput(new TransactionOutput(address,parseFloat(amount)))) - roughSizeOfObject(transaction);
+        const additionalFee = roughSizeOfObject(new Transaction(this.key).addOutput(new TransactionOutput(address,parseFloat(amount)),this.key)) - roughSizeOfObject(transaction);
         fee = (parseFloat(initialFee) + parseInt(roughSizeOfObject(transaction) + additionalFee*2)) * this.minFee;
         if ((amount+fee) > 0 ) {
             for (var j = 0; j < unused.length; j++) {
                 input_value += unused[j].amount;
-                transaction.addInput(new TransactionInput(unused[j].hash, unused[j].output,signature,signature.public));
+                transaction.addInput(new TransactionInput(unused[j].hash, unused[j].output),key);
                 fee = (parseFloat(initialFee) + parseInt(roughSizeOfObject(transaction) + additionalFee*2)) * this.minFee;
                 if (input_value >= parseFloat(amount) + parseFloat(fee)) break;
             }
         }
 
         if (amount > 0 ) {
-            transaction.addOutput(new TransactionOutput(address,parseFloat(amount)));
+            transaction.addOutput(new TransactionOutput(address,parseFloat(amount)),this.key);
         }
 
         fee = (parseFloat(initialFee) + parseInt(roughSizeOfObject(transaction) + additionalFee)) * this.minFee; 
         if (input_value > (parseFloat(amount) + parseFloat(fee))) {
-            transaction.addOutput(new TransactionOutput(this.session.activeWallet.address,input_value - (parseFloat(amount) + parseFloat(fee))));
+            transaction.addOutput(new TransactionOutput(this.session.activeWallet.address,input_value - (parseFloat(amount) + parseFloat(fee))),this.key);
         } else if (input_value < (parseFloat(amount) + parseFloat(fee))) {
             return false;
         }
@@ -533,24 +535,25 @@ class Wallet {
     getTxn(address, amount, fee) {
         var input_value = 0;
         var unused = this.utxos;
-        var transaction = new Transaction();
+        var transaction = new Transaction(this.key);
         var key = this.key;
-        var signature = jcrypto.signMsg(this.address,key);
         if ((amount+fee) > 0 ) {
             for (var i = 0; i < unused.length; i++) {
                 input_value += unused[i].amount;
-                transaction.addInput(new TransactionInput(unused[i].hash, unused[i].output,signature,signature.public));
+                console.log(CryptoJS.SHA256(unused[i].hash + unused[i].output).toString())
+                var signature = jcrypto.signMsg(CryptoJS.SHA256(unused[i].hash + unused[i].output).toString(),key);
+                transaction.addInput(new TransactionInput(unused[i].hash, unused[i].output),this.key);
                 //inputs.push({'previousTxn':unused[i].hash,'index':unused[i].output,'signature':jcrypto.signMsg(this.session.activeWallet.address,key)});
                 if (input_value >= parseFloat(amount) + parseFloat(fee)) break;
             }
         }
 
         if (amount > 0 ) {
-            transaction.addOutput(new TransactionOutput(address,parseFloat(amount)));
+            transaction.addOutput(new TransactionOutput(address,parseFloat(amount)),this.key);
         }
 
         if (input_value > (parseFloat(amount) + parseFloat(fee))) {
-            transaction.addOutput(new TransactionOutput(this.session.activeWallet.address,input_value - (parseFloat(amount) + parseFloat(fee))));
+            transaction.addOutput(new TransactionOutput(this.session.activeWallet.address,input_value - (parseFloat(amount) + parseFloat(fee))),this.key);
         } else if (input_value < (parseFloat(amount) + parseFloat(fee))) {
             return false;
         }
@@ -630,7 +633,7 @@ class Wallet {
     }
 
     transferNFT(previousHash, nftHash, transferToAddress) {
-        const saleTransaction = new Transaction();
+        const saleTransaction = new Transaction(this.key);
         const nftTransfer = new NFTTransfer(previousHash, nftHash, saleTransaction, transferToAddress, this.key);
         $.post( this.session.webServer + "/transferNFT", {nftTransfer:btoa(JSON.stringify(nftTransfer))}).done(( data ) => {
             showSuccess($('#transferNFTModal'),"NFT Transferred!")
@@ -705,8 +708,8 @@ class Wallet {
 }
 
 //var session = new Session('http://localhost:8081');
-var session = new Session('http://jcrypto.ddns.net:55555');
-//var session = new Session('http://localhost:8080');
+//var session = new Session('http://jcrypto.ddns.net:55555');
+var session = new Session('http://jcryptotestnet.ddns.net');
 var jcrypto = new JCrypto(session);
 
 var ec = jcrypto.ec;
